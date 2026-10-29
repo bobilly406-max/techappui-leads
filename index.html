@@ -260,6 +260,15 @@
   </footer>
 
   <script>
+      <!-- Bibliothèque Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ===== CONFIGURATION SUPABASE (remplace par tes valeurs) =====
+    const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+    const SUPABASE_KEY = "TA-CLE-PUBLIQUE";
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     // Année automatique dans le pied de page
     document.getElementById("annee").textContent = new Date().getFullYear();
 
@@ -267,7 +276,6 @@
     const successBox = document.getElementById("success");
     const submitBtn = document.getElementById("submit-btn");
 
-    // Vérifie un champ et affiche l'erreur si besoin
     function validerChamp(champ) {
       let valide = champ.value.trim() !== "";
       if (champ.type === "email") {
@@ -280,7 +288,6 @@
       return valide;
     }
 
-    // Retire l'erreur dès que l'utilisateur corrige
     form.querySelectorAll("input, select, textarea").forEach((champ) => {
       champ.addEventListener("input", () => {
         if (champ.classList.contains("invalid")) validerChamp(champ);
@@ -290,29 +297,34 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      // 1. Valider tous les champs
+      // 1. Valider
       const champs = [...form.querySelectorAll("[required]")];
-      const toutValide = champs.map(validerChamp).every(Boolean);
-      if (!toutValide) return;
+      if (!champs.map(validerChamp).every(Boolean)) return;
 
-      // 2. Rassembler les données
+      // 2. Rassembler les données (mêmes noms que les colonnes de la table)
       const lead = {
         nom: form.nom.value.trim(),
         courriel: form.courriel.value.trim(),
         organisation: form.organisation.value,
         service: form.service.value,
         message: form.message.value.trim(),
-        date: new Date().toISOString(),
       };
 
       submitBtn.disabled = true;
       submitBtn.textContent = "Envoi…";
 
-      // 3. ÉTAPE 1 : on affiche juste les données dans la console.
-      //    ÉTAPE 2 : on remplacera ceci par l'envoi vers Supabase.
-      console.log("Nouvelle demande :", lead);
+      // 3. ÉTAPE 2 : envoi vers Supabase
+      const { error } = await db.from("leads").insert(lead);
 
-      // 4. Afficher le message de succès
+      if (error) {
+        console.error("Erreur Supabase :", error);
+        alert("Oups, l'envoi a échoué. Réessayez dans un instant.");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Envoyer ma demande";
+        return;
+      }
+
+      // 4. Succès
       form.style.display = "none";
       successBox.style.display = "block";
     });
