@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>TechAppui — Admin</title>
+
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --surface: #ffffff;
+      --text: #1b1f2a;
+      --muted: #5b6475;
+      --primary: #2f6fed;
+      --primary-dark: #1f55c4;
+      --border: #e3e6ee;
+      --error: #d93a3a;
+      --radius: 14px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1218;
+        --surface: #181c25;
+        --text: #eef1f7;
+        --muted: #a3abbb;
+        --border: #2a303d;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+    header { padding: 18px 0; border-bottom: 1px solid var(--border); }
+    header .container { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .logo { font-weight: 800; font-size: 1.2rem; }
+    .logo span { color: var(--primary); }
+
+    .btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 11px 20px;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: var(--primary-dark); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--border); }
+
+    /* ----- Connexion ----- */
+    #login-view { padding: 80px 0; }
+    #login-form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      max-width: 400px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+    #login-form h1 { font-size: 1.5rem; }
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; }
+    input, select {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    .error { color: var(--error); font-size: 0.9rem; min-height: 1.2em; }
+
+    /* ----- Tableau de bord ----- */
+    #admin-view { display: none; padding: 30px 0 60px; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    .stats { color: var(--muted); }
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 0.92rem; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; }
+    tr:last-child td { border-bottom: none; }
+    td.message { max-width: 320px; white-space: pre-wrap; }
+    td select { padding: 6px 8px; width: auto; }
+    .empty { padding: 40px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <div class="logo">Tech<span>Appui</span> · Admin</div>
+      <button class="btn btn-ghost" id="logout-btn" style="display:none">Se déconnecter</button>
+    </div>
+  </header>
+
+  <!-- ===== VUE 1 : CONNEXION ===== -->
+  <section id="login-view">
+    <div class="container">
+      <form id="login-form">
+        <h1>Connexion</h1>
+        <div>
+          <label for="email">Courriel</label>
+          <input type="email" id="email" required autocomplete="username" />
+        </div>
+        <div>
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" required autocomplete="current-password" />
+        </div>
+        <div class="error" id="login-error"></div>
+        <button type="submit" class="btn" id="login-btn">Se connecter</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ===== VUE 2 : TABLEAU DE BORD ===== -->
+  <section id="admin-view">
+    <div class="container">
+      <div class="toolbar">
+        <div class="stats" id="stats">Chargement…</div>
+        <button class="btn btn-ghost" id="refresh-btn">🔄 Rafraîchir</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Nom</th>
+              <th>Courriel</th>
+              <th>Organisation</th>
+              <th>Service</th>
+              <th>Message</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody id="leads-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ===== CONFIGURATION SUPABASE (mêmes valeurs que dans index.html) =====
+    const SUPABASE_URL = "https://jzauieumrgylezadyxgj.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_KUAgi4RpEys4DIjDw15YmA_Swu9Xh_p";
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const loginView = document.getElementById("login-view");
+    const adminView = document.getElementById("admin-view");
+    const logoutBtn = document.getElementById("logout-btn");
+    const loginForm = document.getElementById("login-form");
+    const loginError = document.getElementById("login-error");
+    const loginBtn = document.getElementById("login-btn");
+    const tbody = document.getElementById("leads-body");
+    const stats = document.getElementById("stats");
+
+    const STATUTS = ["nouveau", "en cours", "réglé", "archivé"];
+
+    // ----- Afficher la bonne vue selon la session -----
+    function afficher(session) {
+      const connecte = !!session;
+      loginView.style.display = connecte ? "none" : "block";
+      adminView.style.display = connecte ? "block" : "none";
+      logoutBtn.style.display = connecte ? "inline-block" : "none";
+      if (connecte) chargerLeads();
+    }
+
+    // ----- Connexion -----
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginError.textContent = "";
+      loginBtn.disabled = true;
+      loginBtn.textContent = "Connexion…";
+
+      const { error } = await db.auth.signInWithPassword({
+        email: document.getElementById("email").value.trim(),
+        password: document.getElementById("password").value,
+      });
+
+      loginBtn.disabled = false;
+      loginBtn.textContent = "Se connecter";
+      if (error) {
+        console.error(error);
+        loginError.textContent = "Courriel ou mot de passe incorrect.";
+      }
+    });
+
+    // ----- Déconnexion -----
+    logoutBtn.addEventListener("click", () => db.auth.signOut());
+
+    // ----- Réagir à chaque changement de session -----
+    db.auth.onAuthStateChange((_event, session) => afficher(session));
+
+    // ----- Charger les demandes -----
+    async function chargerLeads() {
+      stats.textContent = "Chargement…";
+      const { data, error } = await db
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erreur Supabase :", error);
+        stats.textContent = "Erreur de chargement (voir la console).";
+        return;
+      }
+
+      const nouveaux = data.filter((l) => l.statut === "nouveau").length;
+      stats.textContent = `${data.length} demande(s) · ${nouveaux} nouvelle(s)`;
+
+      tbody.innerHTML = "";
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Aucune demande pour l\'instant.</td></tr>';
+        return;
+      }
+
+      data.forEach((lead) => tbody.appendChild(creerLigne(lead)));
+    }
+
+    // ----- Créer une ligne du tableau -----
+    // On utilise textContent (jamais innerHTML) pour les données reçues :
+    // un visiteur malveillant ne peut pas injecter de code dans ta page admin.
+    function creerLigne(lead) {
+      const tr = document.createElement("tr");
+
+      const date = new Date(lead.created_at).toLocaleString("fr-CA", {
+        timeZone: "America/Toronto",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+      [date, lead.nom, lead.courriel, lead.organisation, lead.service, lead.message].forEach((valeur, i) => {
+        const td = document.createElement("td");
+        td.textContent = valeur;
+        if (i === 5) td.className = "message";
+        tr.appendChild(td);
+      });
+
+      // Menu déroulant pour changer le statut
+      const tdStatut = document.createElement("td");
+      const select = document.createElement("select");
+      STATUTS.forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        if (s === lead.statut) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", async () => {
+        const { error } = await db.from("leads").update({ statut: select.value }).eq("id", lead.id);
+        if (error) {
+          console.error("Erreur Supabase :", error);
+          alert("Impossible de changer le statut.");
+          select.value = lead.statut;
+        } else {
+          lead.statut = select.value;
+          chargerLeads();
+        }
+      });
+      tdStatut.appendChild(select);
+      tr.appendChild(tdStatut);
+
+      return tr;
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", chargerLeads);
+  </script>
+</body>
+</html>
